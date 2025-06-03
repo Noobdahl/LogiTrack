@@ -1,4 +1,5 @@
 using LogiTrack.Context;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,6 +7,7 @@ namespace LogiTrack.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize] // Protect all endpoints by default
     public class OrderController : ControllerBase
     {
         private readonly LogiTrackContext _context;
@@ -38,6 +40,7 @@ namespace LogiTrack.Controllers
 
         // Create a new order
         [HttpPost]
+        [Authorize(Roles = "Manager")] // Only Manager can create orders
         public async Task<IActionResult> AddOrder([FromBody] Order newOrder)
         {
             if (newOrder == null)
@@ -62,6 +65,7 @@ namespace LogiTrack.Controllers
 
         // Delete an order by ID
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Manager")] // Only Manager can delete orders
         public async Task<IActionResult> RemoveOrder(int id)
         {
             var order = await _context.Orders.FirstOrDefaultAsync(o => o.OrderId == id);

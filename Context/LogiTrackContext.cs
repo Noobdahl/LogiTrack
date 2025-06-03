@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using LogiTrack.Models;
 
 namespace LogiTrack.Context
 {
-    public class LogiTrackContext : DbContext
+    public class LogiTrackContext : IdentityDbContext<ApplicationUser>
     {
         public DbSet<InventoryItem> InventoryItems { get; set; }
         public DbSet<Order> Orders { get; set; }
@@ -28,6 +30,8 @@ namespace LogiTrack.Context
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            base.OnModelCreating(modelBuilder);
+
             // Configure one-to-many relationship
             modelBuilder.Entity<Order>()
                 .HasMany(o => o.Items)

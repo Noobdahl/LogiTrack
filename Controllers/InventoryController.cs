@@ -1,10 +1,12 @@
 using LogiTrack.Context;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LogiTrack.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize] // Protect all endpoints by default
     public class InventoryController : ControllerBase
     {
         private readonly LogiTrackContext _context;
@@ -22,8 +24,21 @@ namespace LogiTrack.Controllers
             return Ok(items);
         }
 
+        // Get an item by ID
+        [HttpGet("{id}")]
+        public IActionResult GetInventoryItemById(int id)
+        {
+            var item = _context.InventoryItems.FirstOrDefault(i => i.ItemId == id);
+            if (item == null)
+            {
+                return NotFound($"Inventory item with ID {id} not found.");
+            }
+            return Ok(item);
+        }
+
         // Add a new item to the inventory
         [HttpPost]
+        [Authorize(Roles = "Manager")] // Only Manager can add items
         public IActionResult AddInventoryItem([FromBody] InventoryItem newItem)
         {
             if (newItem == null)
@@ -38,6 +53,7 @@ namespace LogiTrack.Controllers
 
         // Remove an item by ID
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Manager")] // Only Manager can delete items
         public IActionResult RemoveInventoryItem(int id)
         {
             var item = _context.InventoryItems.FirstOrDefault(i => i.ItemId == id);
