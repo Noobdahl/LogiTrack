@@ -13,6 +13,7 @@ namespace LogiTrack.Controllers
     {
         private readonly LogiTrackContext _context;
         private readonly IMemoryCache _cache;
+        private const string InventoryCacheKey = "all_inventory_items";
         public InventoryController(LogiTrackContext context, IMemoryCache cache)
         {
             _context = context;
@@ -25,15 +26,14 @@ namespace LogiTrack.Controllers
         {
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            const string cacheKey = "all_inventory_items";
-            if (!_cache.TryGetValue(cacheKey, out List<InventoryItem>? items))
+            if (!_cache.TryGetValue(InventoryCacheKey, out List<InventoryItem>? items))
             {
                 items = await _context.InventoryItems.AsNoTracking().ToListAsync();
 
                 var cacheEntryOptions = new MemoryCacheEntryOptions()
                     .SetSlidingExpiration(TimeSpan.FromMinutes(5));
 
-                _cache.Set(cacheKey, items, cacheEntryOptions);
+                _cache.Set(InventoryCacheKey, items, cacheEntryOptions);
             }
 
             stopwatch.Stop();
@@ -43,13 +43,11 @@ namespace LogiTrack.Controllers
 
         // Get an item by ID
         [HttpGet("{id}")]
-        public IActionResult GetInventoryItemById(int id)
+        public async Task<IActionResult> GetInventoryItemById(int id)
         {
-            var item = _context.InventoryItems.FirstOrDefault(i => i.ItemId == id);
+            var item = await _context.InventoryItems.FindAsync(id);
             if (item == null)
-            {
                 return NotFound($"Inventory item with ID {id} not found.");
-            }
             return Ok(item);
         }
 
@@ -63,7 +61,7 @@ namespace LogiTrack.Controllers
 
             await _context.InventoryItems.AddAsync(newItem);
             await _context.SaveChangesAsync();
-            _cache.Remove("all_inventory_items");
+            _cache.Remove(InventoryCacheKey);
             return CreatedAtAction(nameof(GetAllInventoryItems), new { id = newItem.ItemId }, newItem);
         }
 
@@ -78,7 +76,7 @@ namespace LogiTrack.Controllers
 
             _context.InventoryItems.Remove(item);
             await _context.SaveChangesAsync();
-            _cache.Remove("all_inventory_items");
+            _cache.Remove(InventoryCacheKey);
             return NoContent();
         }
     }
