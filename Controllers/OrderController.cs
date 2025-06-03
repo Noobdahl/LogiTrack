@@ -21,7 +21,20 @@ namespace LogiTrack.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAllOrders()
         {
-            var orders = await _context.Orders.ToListAsync();
+            var orders = await _context.Orders
+                .Select(o => new {
+                    o.OrderId,
+                    o.CustomerName,
+                    o.DatePlaced,
+                    Items = o.Items.Select(i => new {
+                        i.ItemId,
+                        i.Name,
+                        i.Quantity,
+                        i.Location
+                    }).ToList()
+                })
+                .ToListAsync();
+
             return Ok(orders);
         }
 
@@ -29,11 +42,13 @@ namespace LogiTrack.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetOrderById(int id)
         {
-            var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.OrderId == id);
+            var order = await _context.Orders
+                .AsNoTracking()
+                .Include(o => o.Items)
+                .FirstOrDefaultAsync(o => o.OrderId == id);
+
             if (order == null)
-            {
                 return NotFound($"Order with ID {id} not found.");
-            }
 
             return Ok(order);
         }

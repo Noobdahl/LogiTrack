@@ -1,6 +1,8 @@
 using LogiTrack.Context;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.EntityFrameworkCore;
 
 namespace LogiTrack.Controllers
 {
@@ -10,17 +12,32 @@ namespace LogiTrack.Controllers
     public class InventoryController : ControllerBase
     {
         private readonly LogiTrackContext _context;
-
-        public InventoryController(LogiTrackContext context)
+        private readonly IMemoryCache _cache;
+        public InventoryController(LogiTrackContext context, IMemoryCache cache)
         {
             _context = context;
+            _cache = cache;
         }
 
         // Return a list of all inventory items
         [HttpGet]
-        public IActionResult GetAllInventoryItems()
+        public async Task<IActionResult> GetAllInventoryItems()
         {
-            var items = _context.InventoryItems.ToList();
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            const string cacheKey = "all_inventory_items";
+            if (!_cache.TryGetValue(cacheKey, out List<InventoryItem>? items))
+            {
+                items = await _context.InventoryItems.AsNoTracking().ToListAsync();
+
+                var cacheEntryOptions = new MemoryCacheEntryOptions()
+                    .SetSlidingExpiration(TimeSpan.FromMinutes(5));
+
+                _cache.Set(cacheKey, items, cacheEntryOptions);
+            }
+
+            stopwatch.Stop();
+            Response.Headers["X-Elapsed-Milliseconds"] = stopwatch.ElapsedMilliseconds.ToString();
             return Ok(items);
         }
 
@@ -39,31 +56,29 @@ namespace LogiTrack.Controllers
         // Add a new item to the inventory
         [HttpPost]
         [Authorize(Roles = "Manager")] // Only Manager can add items
-        public IActionResult AddInventoryItem([FromBody] InventoryItem newItem)
+        public async Task<IActionResult> AddInventoryItem([FromBody] InventoryItem newItem)
         {
             if (newItem == null)
-            {
                 return BadRequest("Invalid inventory item.");
-            }
 
-            _context.InventoryItems.Add(newItem);
-            _context.SaveChanges();
+            await _context.InventoryItems.AddAsync(newItem);
+            await _context.SaveChangesAsync();
+            _cache.Remove("all_inventory_items");
             return CreatedAtAction(nameof(GetAllInventoryItems), new { id = newItem.ItemId }, newItem);
         }
 
         // Remove an item by ID
         [HttpDelete("{id}")]
         [Authorize(Roles = "Manager")] // Only Manager can delete items
-        public IActionResult RemoveInventoryItem(int id)
+        public async Task<IActionResult> RemoveInventoryItem(int id)
         {
-            var item = _context.InventoryItems.FirstOrDefault(i => i.ItemId == id);
+            var item = await _context.InventoryItems.FindAsync(id);
             if (item == null)
-            {
                 return NotFound($"Inventory item with ID {id} not found.");
-            }
 
             _context.InventoryItems.Remove(item);
-            _context.SaveChanges();
+            await _context.SaveChangesAsync();
+            _cache.Remove("all_inventory_items");
             return NoContent();
         }
     }
